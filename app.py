@@ -948,6 +948,54 @@ def build_confidence_chart(class_names: list[str], scores: list[float], selected
     )
 
 
+def render_demo_models_summary(models: list[dict], results: dict[str, dict]) -> None:
+    html = """
+    <div class="panel" style="padding: 18px; margin-top: 14px;">
+        <div class="kicker">Models Overview</div>
+        <div class="panel-title" style="font-size: 22px; margin-bottom: 12px;">All Models Comparison</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+    """
+    for model in models:
+        result = results.get(model["id"])
+        
+        if model["status"] == "missing":
+            status_chip = '<span class="chip chip-warn" style="margin: 0; padding: 4px 8px; font-size: 11px;">Missing</span>'
+            content = f'<span style="font-weight: 500; color: var(--muted); font-style: italic;">{model["name"]}</span>'
+            details = '<div style="color: var(--muted); font-size: 13px;">--</div>'
+            style = 'opacity: 0.6;'
+        elif not result:
+            status_chip = '<span class="chip chip-warn" style="margin: 0; padding: 4px 8px; font-size: 11px;">Not run</span>'
+            content = f'<span style="font-weight: 600; color: var(--ink);">{model["name"]}</span>'
+            details = '<div style="color: var(--muted); font-size: 13px;">--</div>'
+            style = ''
+        elif result.get("error"):
+            status_chip = '<span class="chip chip-warn" style="margin: 0; padding: 4px 8px; font-size: 11px;">Error</span>'
+            content = f'<span style="font-weight: 600; color: var(--ink);">{model["name"]}</span>'
+            details = f'<div style="color: var(--muted); font-size: 13px; max-width: 150px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{result["error"]}</div>'
+            style = ''
+        else:
+            status_chip = '<span class="chip chip-ok" style="margin: 0; padding: 4px 8px; font-size: 11px; background: #edf6ee; color: #557c5d; border: 1px solid #d3e5d6;">Ready</span>'
+            content = f'<span style="font-weight: 600; color: var(--ink);">{model["name"]}: <strong>{result["label"]}</strong></span>'
+            details = f'<div style="color: var(--ink); font-weight: 600; font-size: 13px;">{result["confidence"]:.1%} <span style="color: var(--muted); font-weight: normal; font-size: 12px;">({result["time_ms"]:.0f} ms)</span></div>'
+            style = ''
+            
+        html += f"""
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fffdf9; border: 1px solid var(--line); border-radius: 14px; {style}">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {status_chip}
+                    {content}
+                </div>
+                {details}
+            </div>
+        """
+        
+    html += """
+        </div>
+    </div>
+    """
+    render_html(html)
+
+
 def render_model_cards(models: list[dict], results: dict[str, dict]) -> None:
     html = '<div class="model-grid">'
     for model in models:
@@ -1110,6 +1158,7 @@ with tabs[0]:
         else:
             best_result = results[best_key]
             render_result_panel(best_result, threshold)
+            render_demo_models_summary(models, results)
 
             valid_models = [model for model in models if results.get(model["id"]) and not results[model["id"]].get("error")]
             selected_name = st.selectbox("View confidence chart for", [model["name"] for model in valid_models], index=0)

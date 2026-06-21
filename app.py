@@ -102,7 +102,10 @@ MODEL_SLOTS = [
     {
         "id": "mobilenetv2",
         "name": "MobileNetV2",
-        "patterns": ["*mobilenet*.keras"],
+        "patterns": [
+            "fruit_8class_mobilenetv2_best_fixed.keras",
+            "fruit_8class_mobilenetv2_best.keras",
+        ],
         "description": "MobileNetV2 result",
     },
     {

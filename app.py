@@ -125,7 +125,9 @@ MODEL_SLOTS = [
 
 
 def render_html(content: str) -> None:
-    st.markdown(dedent(content).strip(), unsafe_allow_html=True)
+    # Remove leading spaces from each line to prevent markdown code block formatting (4+ spaces)
+    clean_lines = [line.strip() for line in content.splitlines()]
+    st.markdown("\n".join(clean_lines), unsafe_allow_html=True)
 
 
 def inject_css() -> None:
@@ -948,51 +950,65 @@ def build_confidence_chart(class_names: list[str], scores: list[float], selected
     )
 
 
-def render_demo_models_summary(models: list[dict], results: dict[str, dict]) -> None:
-    html = """
-    <div class="panel" style="padding: 18px; margin-top: 14px;">
-        <div class="kicker">Models Overview</div>
-        <div class="panel-title" style="font-size: 22px; margin-bottom: 12px;">All Models Comparison</div>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-    """
+def render_demo_model_cards(models: list[dict], results: dict[str, dict]) -> None:
+    html = '<div class="model-grid">'
+    # Colors for each model card background/accents
+    model_colors = {
+        "mobilenetv2": {
+            "bg": "linear-gradient(135deg, #fffaf5 0%, #f0f7ff 100%)",
+            "border": "#c9e2ff",
+        },
+        "efficientnetb0": {
+            "bg": "linear-gradient(135deg, #fffaf5 0%, #fff3eb 100%)",
+            "border": "#ffdcc5",
+        },
+        "resnet18": {
+            "bg": "linear-gradient(135deg, #fffaf5 0%, #faf5ff 100%)",
+            "border": "#f1dfff",
+        }
+    }
+    
     for model in models:
         result = results.get(model["id"])
+        colors = model_colors.get(model["id"], {
+            "bg": "#fffdf9",
+            "border": "var(--line)",
+        })
         
-        if model["status"] == "missing":
-            status_chip = '<span class="chip chip-warn" style="margin: 0; padding: 4px 8px; font-size: 11px;">Missing</span>'
-            content = f'<span style="font-weight: 500; color: var(--muted); font-style: italic;">{model["name"]}</span>'
-            details = '<div style="color: var(--muted); font-size: 13px;">--</div>'
-            style = 'opacity: 0.6;'
-        elif not result:
-            status_chip = '<span class="chip chip-warn" style="margin: 0; padding: 4px 8px; font-size: 11px;">Not run</span>'
-            content = f'<span style="font-weight: 600; color: var(--ink);">{model["name"]}</span>'
-            details = '<div style="color: var(--muted); font-size: 13px;">--</div>'
-            style = ''
-        elif result.get("error"):
-            status_chip = '<span class="chip chip-warn" style="margin: 0; padding: 4px 8px; font-size: 11px;">Error</span>'
-            content = f'<span style="font-weight: 600; color: var(--ink);">{model["name"]}</span>'
-            details = f'<div style="color: var(--muted); font-size: 13px; max-width: 150px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{result["error"]}</div>'
-            style = ''
-        else:
-            status_chip = '<span class="chip chip-ok" style="margin: 0; padding: 4px 8px; font-size: 11px; background: #edf6ee; color: #557c5d; border: 1px solid #d3e5d6;">Ready</span>'
-            content = f'<span style="font-weight: 600; color: var(--ink);">{model["name"]}: <strong>{result["label"]}</strong></span>'
-            details = f'<div style="color: var(--ink); font-weight: 600; font-size: 13px;">{result["confidence"]:.1%} <span style="color: var(--muted); font-weight: normal; font-size: 12px;">({result["time_ms"]:.0f} ms)</span></div>'
-            style = ''
+        status_text = "Ready" if model["status"] == "available" else "Missing File"
+        badge_class = "chip-ok" if model["status"] == "available" else "chip-warn"
+        opacity_style = "opacity: 0.65;" if model["status"] != "available" else ""
+        
+        body = '<div style="margin-top: 15px; color: var(--muted); font-style: italic;">Not run yet</div>'
+        if model["status"] != "available":
+            body = '<div style="margin-top: 15px; color: var(--muted); font-style: italic;">No model file found</div>'
+        elif result and result.get("error"):
+            body = f'<div style="margin-top: 15px; color: #c56f58; font-weight: 500; font-size: 14px;">Error: {result["error"]}</div>'
+        elif result:
+            body = f"""
+            <div style="margin-top: 16px;">
+                <div style="font-family: Georgia, serif; font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 4px;">
+                    {result["label"]}
+                </div>
+                <div style="font-size: 20px; font-weight: 700; color: var(--peach-dark); margin-bottom: 8px;">
+                    {result["confidence"]:.1%}
+                </div>
+                <div style="font-size: 13px; color: var(--muted);">
+                    Time: {result["time_ms"]:.0f} ms
+                </div>
+            </div>
+            """
             
         html += f"""
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fffdf9; border: 1px solid var(--line); border-radius: 14px; {style}">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    {status_chip}
-                    {content}
-                </div>
-                {details}
+        <div class="model-card" style="background: {colors['bg']}; border: 1px solid {colors['border']}; {opacity_style}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span class="chip {badge_class}" style="margin: 0; padding: 4px 10px; font-size: 11px;">{status_text}</span>
             </div>
-        """
-        
-    html += """
+            <div class="model-name" style="font-size: 22px; font-weight: 700; margin: 0; color: var(--ink);">{model["name"]}</div>
+            {body}
         </div>
-    </div>
-    """
+        """
+    html += '</div>'
     render_html(html)
 
 
@@ -1102,7 +1118,7 @@ tabs = st.tabs(["Demo", "Model Comparison", "Report"])
 
 
 with tabs[0]:
-    left, right = st.columns([1.02, 1], gap="large")
+    left, right = st.columns([1, 2], gap="large")
 
     with left:
         render_html(
@@ -1141,29 +1157,25 @@ with tabs[0]:
         render_html(
             """
             <div class="panel">
-                <div class="kicker">Prediction</div>
-                <div class="panel-title">Best Result</div>
-                <div class="panel-copy">The strongest available prediction is shown here.</div>
+                <div class="kicker">Predictions</div>
+                <div class="panel-title">Model Classification Results</div>
+                <div class="panel-copy">Predictions and confidence levels across all three models.</div>
             </div>
             """
         )
 
         results = st.session_state.model_results
-        best_key = best_result_key(models, results)
 
         if not results:
             empty_box("Prediction results will appear here after analysis.")
-        elif best_key is None:
-            empty_box("No valid prediction is available yet.")
         else:
-            best_result = results[best_key]
-            render_result_panel(best_result, threshold)
-            render_demo_models_summary(models, results)
+            render_demo_model_cards(models, results)
 
             valid_models = [model for model in models if results.get(model["id"]) and not results[model["id"]].get("error")]
-            selected_name = st.selectbox("View confidence chart for", [model["name"] for model in valid_models], index=0)
-            selected_model = next(model for model in valid_models if model["name"] == selected_name)
-            selected_result = results[selected_model["id"]]
+            if valid_models:
+                selected_name = st.selectbox("View confidence chart for", [model["name"] for model in valid_models], index=0)
+                selected_model = next(model for model in valid_models if model["name"] == selected_name)
+                selected_result = results[selected_model["id"]]
 
             render_html(
                 """

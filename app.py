@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import base64
 import json
@@ -118,7 +118,7 @@ MODEL_SLOTS = [
     {
         "id": "resnet18",
         "name": "ResNet18",
-        "patterns": ["*resnet*.keras"],
+        "patterns": ["*resnet*.pth", "model_fruit_8classes.pth"],
         "description": "ResNet18 result",
     },
 ]
@@ -755,7 +755,17 @@ def discover_models() -> list[dict]:
 
 @st.cache_resource(show_spinner=False)
 def load_model_resource(path_str: str):
-    return tf.keras.models.load_model(path_str)
+    if path_str.endswith(".pth"):
+        import torch
+        import torchvision.models as tv_models
+        model = tv_models.resnet18(weights=None)
+        model.fc = torch.nn.Linear(512, 8)
+        ckpt = torch.load(path_str, map_location='cpu')
+        model.load_state_dict(ckpt)
+        model.eval()
+        return model
+    else:
+        return tf.keras.models.load_model(path_str)
 
 
 def preprocess_image(image: Image.Image) -> np.ndarray:
@@ -778,10 +788,28 @@ def normalize_scores(raw_output: np.ndarray) -> np.ndarray:
 
 def predict_with_model(model_path: Path, image: Image.Image, class_names: list[str]) -> dict:
     start = time.perf_counter()
-    model = load_model_resource(str(model_path))
-    batch = preprocess_image(image)
-    raw_output = model.predict(batch, verbose=0)
-    scores = normalize_scores(raw_output)
+    path_str = str(model_path)
+    model = load_model_resource(path_str)
+    
+    if path_str.endswith(".pth"):
+        import torch
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        resized = image.resize((224, 224), Image.Resampling.LANCZOS)
+        img_arr = np.asarray(resized, dtype=np.float32) / 255.0
+        mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        normalized = (img_arr - mean) / std
+        tensor = torch.from_numpy(normalized).permute(2, 0, 1).unsqueeze(0)
+        
+        with torch.no_grad():
+            outputs = model(tensor)
+            scores = torch.nn.functional.softmax(outputs, dim=1)[0].numpy()
+    else:
+        batch = preprocess_image(image)
+        raw_output = model.predict(batch, verbose=0)
+        scores = normalize_scores(raw_output)
+        
     index = int(np.argmax(scores))
     elapsed_ms = (time.perf_counter() - start) * 1000
     return {

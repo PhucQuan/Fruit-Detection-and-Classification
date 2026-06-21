@@ -1252,11 +1252,39 @@ with tabs[1]:
                         "Time (ms)": result["time_ms"],
                     }
                 )
-        compare_df = pd.DataFrame(rows)
-        st.dataframe(
-            compare_df.style.format({"Confidence": "{:.1%}", "Time (ms)": "{:.0f}"}),
-            use_container_width=True,
-            hide_index=True,
+        table_rows = ""
+        for row in rows:
+            conf_val = f"{row['Confidence']:.1%}" if not pd.isna(row['Confidence']) else "--"
+            time_val = f"{row['Time (ms)']:.0f} ms" if not pd.isna(row['Time (ms)']) else "--"
+            status_chip = "chip-ok" if row['Status'] == "OK" else "chip-warn"
+            
+            table_rows += f"""
+            <tr>
+                <td><strong>{row['Model']}</strong></td>
+                <td><span class="chip {status_chip}" style="margin: 0; padding: 4px 8px; font-size: 11px;">{row['Status']}</span></td>
+                <td>{row['Prediction']}</td>
+                <td>{conf_val}</td>
+                <td>{time_val}</td>
+            </tr>
+            """
+            
+        render_html(
+            f"""
+            <table class="report-table" style="margin-top: 18px; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line);">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Status</th>
+                        <th>Prediction</th>
+                        <th>Confidence</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_rows}
+                </tbody>
+            </table>
+            """
         )
     else:
         empty_box("Run an image through the app to populate the comparison table.")
